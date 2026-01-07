@@ -1,54 +1,66 @@
-const express = require('express');
-const http = require('http');
-const {Server} = require('socket.io');
-const game = require('./game/gameState')
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const { createGame, makeMove } = require("./game/gameManager");
 
 const app = express();
-
 const server = http.createServer(app);
-
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ['GET', 'POST']
-    }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const PORT = 3001
+const PORT = 3001;
 
-app.use(express.static('public'));
+// Lobby + Games
+const lobbyUsers = new Map(); // socketId => { id }
+const games = new Map(); // roomId => game
 
-app.get('/', (req, res) => {
-    res.send("Socket IO is running.")
-})
+io.on("connection", (socket) => {
+  console.log("Connected:", socket.id);
 
-io.on('connection', (socket) => {
-    console.log("A user connected: ", socket.id);
+  // Add to lobby
+  lobbyUsers.set(socket.id, { id: socket.id });
+  io.emit("lobbyUsers", Array.from(lobbyUsers.values()));
 
-    symbol = game.addPlayer(socket.id)
+  // Send duel request
+  socket.on("sendDuelRequest", (targetId) => {
+    io.to(targetId).emit("duelRequest", { from: socket.id });
+  });
 
-    socket.emit('assignPlayer', symbol);
-    socket.emit('gameState', game.getState());
+  // Accept duel
+  socket.on("acceptDuel", ({ from }) => {
+    const roomId = `game-${from}-${socket.id}`;
 
-    socket.on('makeMove', (index) => {
-        const result = game.makeMove(socket.id, index);
-        if(!result) return;
-        
-        io.emit("gameUpdate", result);
+    socket.join(roomId);
+    io.to(from).socketsJoin(roomId);
 
-        if(result.winner){
-            io.emit("gameState", game.getState());
-        }
-    })
+    const game = createGame(roomId, from, socket.id);
+    games.set(roomId, game);
 
-    socket.on('disconnect', () => {
-        console.log("A user disconnected: ", socket.id);
-        game.removePlayer(socket.id);
-        game.resetGame();
-        io.emit('gameState', game.getState());
+    io.to(roomId).emit("gameStart", {
+      roomId,
+      players: game.players
     });
+  });
+
+  // Make move
+  socket.on("makeMove", ({ roomId, index }) => {
+    const game = games.get(roomId);
+    if (!game) return;
+
+    const result = makeMove(game, socket.id, index);
+    if (!result) return;
+
+    io.to(roomId).emit("gameUpdate", result);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Disconnected:", socket.id);
+    lobbyUsers.delete(socket.id);
+    io.emit("lobbyUsers", Array.from(lobbyUsers.values()));
+  });
 });
 
-server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
 });
