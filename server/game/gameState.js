@@ -53,6 +53,10 @@ function getState(){
     };
 }
 
+function getPlayer(){
+    return players;
+}
+
 function removePlayer(socketId){
     if(players.X === socketId) delete players.X;
     if(players.O === socketId) delete players.O;
@@ -63,5 +67,6 @@ module.exports = {
     resetGame,
     makeMove,
     getState,
-    removePlayer
+    removePlayer,
+    getPlayer
 };

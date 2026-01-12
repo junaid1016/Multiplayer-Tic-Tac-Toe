@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
-const socket = io("http://localhost:3001/");
+const socket = io("http://localhost:3001/", {
+  autoConnect: false,
+});
 
 export default function App() {
   const [lobbyUsers, setLobbyUsers] = useState([]);
@@ -17,7 +19,12 @@ export default function App() {
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
 
+  const [mySymbol, setMySymbol] = useState("O");
+
   useEffect(() => {
+
+    socket.connect();
+
     socket.on("lobbyUsers", setLobbyUsers);
 
     socket.on("duelRequest", ({ from }) => {
@@ -55,12 +62,17 @@ export default function App() {
       socket.off("duelRequest");
       socket.off("gameStart");
       socket.off("gameUpdate");
+      socket.disconnect();
     };
   }, []);
+
+
+
 
   function requestDuel(id) {
     setIsRequesting(true);
     socket.emit("sendDuelRequest", id);
+    setMySymbol('X');
   }
 
   function acceptDuel() {
@@ -91,6 +103,7 @@ export default function App() {
   const isYou = u.id === socket.id;
 
   return (
+    
     <div key={u.id} style={{ marginBottom: "8px" }}>
       <span>
         {u.id.slice(0, 5)} {isYou && "(You)"}
@@ -121,6 +134,12 @@ export default function App() {
       {/* GAME BOARD */}
       {roomId && (
         <>
+          <p>
+            Room Id -> {roomId}
+          </p>
+          <p>
+            You are: {mySymbol}
+          </p>
           <p>
             {winner
               ? `Winner: ${winner}`

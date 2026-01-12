@@ -58,6 +58,7 @@ io.on("connection", (socket) => {
     console.log("Disconnected:", socket.id);
     lobbyUsers.delete(socket.id);
     io.emit("lobbyUsers", Array.from(lobbyUsers.values()));
+    console.log("Lobbys: ", lobbyUsers);
   });
 });
 
